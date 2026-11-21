@@ -204,6 +204,9 @@ MonoBehaviour:
   maxHealth: 100
   attackDamage: 5
   attackCooldown: 2
+  animator: {fileID: 0}
+  spriteRenderer: {fileID: 0}
+  spriteFacesRight: 1
 --- !u!212 &290867091
 SpriteRenderer:
   serializedVersion: 3
@@ -273,8 +276,8 @@ Transform:
   m_GameObject: {fileID: 290867089}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.048786, y: 0.4320249, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 3.6560125, y: 1.5845323, z: 0}
+  m_LocalScale: {x: 0.9999915, y: 0.99995, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -407,8 +410,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.PixelPerfect::UnityEngine.U2D.PixelPerfectCamera
   m_AssetsPPU: 100
-  m_RefResolutionX: 320
-  m_RefResolutionY: 180
+  m_RefResolutionX: 1920
+  m_RefResolutionY: 1080
   m_UpscaleRT: 0
   m_PixelSnapping: 0
   m_CropFrameX: 0
@@ -720,8 +723,8 @@ Transform:
   m_GameObject: {fileID: 1753811057}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.11269188, y: 3.676114, z: 0}
-  m_LocalScale: {x: 10, y: 10, z: 1}
+  m_LocalPosition: {x: -0.7666952, y: 3.175015, z: 0}
+  m_LocalScale: {x: 9.998299, y: 9.999887, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
