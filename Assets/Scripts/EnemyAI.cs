@@ -12,49 +12,79 @@ public class EnemyAI : MonoBehaviour, IDamageable
         AttackingPlayer
     }
 
-    // Подія, на яку підписується спавнер, щоб знати, скільки вовків залишилось
     public static event Action<EnemyAI> OnEnemyDied;
 
     public State currentState = State.MovingToFence;
 
-    // Targets (спавнер задає їх через Initialize)
     public Transform fenceTarget;
     public Transform player;
 
-    // Movement + Aggro
     public float speed = 3.0f;
     public float aggroRadius = 5.0f;
     public float attackRange = 1.5f;
     public float losePlayerRange = 8f;
 
-    // Stats
     public int maxHealth = 100;
     private int currentHealth;
     private bool isDead;
 
-    // Attack
     public int attackDamage = 5;
     public float attackCooldown = 2f;
     private float lastAttackTime;
 
+    [Header("Animation")]
+    public Animator animator;
+    public SpriteRenderer spriteRenderer;
+    public bool spriteFacesRight = true;
+
+    private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
+    private static readonly int AttackHash = Animator.StringToHash("Attack");
+    private bool isMoving;
+
+    private FenceSection targetFence;
+    private IDamageable playerDamageable;
+
+    private Rigidbody2D rb;
+    private Vector2 pendingMoveTarget;
+    private bool hasPendingMove;
+    private readonly RaycastHit2D[] rayBuffer = new RaycastHit2D[8];
+
     private void Awake()
     {
         currentHealth = maxHealth;
-        lastAttackTime = -attackCooldown; // перша атака без очікування
+        lastAttackTime = -attackCooldown;
+
+        if (animator == null) animator = GetComponentInChildren<Animator>();
+        if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+        rb = GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.bodyType = RigidbodyType2D.Dynamic;
+            rb.gravityScale = 0f;
+            rb.freezeRotation = true;
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        }
     }
 
-    /// <summary>
-    /// Викликається спавнером одразу після Instantiate.
-    /// difficultyMultiplier: 1 = базові характеристики, 1.25 = на 25% сильніший тощо.
-    /// </summary>
+    private void FixedUpdate()
+    {
+        if (isDead || rb == null || !hasPendingMove) return;
+
+        rb.MovePosition(Vector2.MoveTowards(rb.position, pendingMoveTarget, speed * Time.fixedDeltaTime));
+        hasPendingMove = false;
+    }
+
     public void Initialize(Transform fence, Transform playerTarget, float difficultyMultiplier)
     {
         fenceTarget = fence;
+        targetFence = fence != null ? fence.GetComponentInParent<FenceSection>() : null;
+
         player = playerTarget;
+        playerDamageable = player != null ? player.GetComponentInParent<IDamageable>() : null;
 
         maxHealth = Mathf.RoundToInt(maxHealth * difficultyMultiplier);
         attackDamage = Mathf.RoundToInt(attackDamage * difficultyMultiplier);
-        // швидкість росте повільніше, щоб вовки не стали непереможними
         speed *= 1f + (difficultyMultiplier - 1f) * 0.3f;
 
         currentHealth = maxHealth;
@@ -62,8 +92,24 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
     private void Update()
     {
+        if (isDead) return;
+
+        isMoving = false;
+
+        ResolveFence();
         CheckTriggers();
         ExecuteState();
+
+        if (animator != null)
+            animator.SetBool(IsMovingHash, isMoving);
+    }
+
+    private void ResolveFence()
+    {
+        if (targetFence != null && !targetFence.IsDestroyed) return;
+
+        targetFence = FenceSection.FindNearest(transform.position);
+        fenceTarget = targetFence != null ? targetFence.transform : null;
     }
 
     private void CheckTriggers()
@@ -72,13 +118,20 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
         float distanceToPlayer = Vector2.Distance(transform.position, player.position);
 
+        // РЇРєС‰Рѕ РѕРіРѕСЂРѕР¶ Р±С–Р»СЊС€Рµ РЅРµРјР°С” вЂ” Р¶РµРЅРµРјРѕСЃСЏ Р·Р° РіСЂР°РІС†РµРј
+        if (targetFence == null)
+        {
+            currentState = distanceToPlayer <= attackRange ? State.AttackingPlayer : State.ChasingPlayer;
+            return;
+        }
+
         switch (currentState)
         {
             case State.AttackingPlayer:
                 if (distanceToPlayer > losePlayerRange)
                     currentState = State.MovingToFence;
                 else if (distanceToPlayer > attackRange)
-                    currentState = State.ChasingPlayer; // гравець відійшов - наздоганяємо
+                    currentState = State.ChasingPlayer;
                 break;
 
             case State.ChasingPlayer:
@@ -88,7 +141,7 @@ public class EnemyAI : MonoBehaviour, IDamageable
                     currentState = State.AttackingPlayer;
                 break;
 
-            default: // Idle, MovingToFence, AttackingFence
+            default:
                 if (distanceToPlayer <= aggroRadius)
                     currentState = distanceToPlayer <= attackRange ? State.AttackingPlayer : State.ChasingPlayer;
                 break;
@@ -100,27 +153,39 @@ public class EnemyAI : MonoBehaviour, IDamageable
         switch (currentState)
         {
             case State.Idle:
+                if (targetFence != null)
+                    currentState = State.MovingToFence;
                 break;
 
             case State.MovingToFence:
-                if (fenceTarget == null)
+                if (targetFence == null)
                 {
                     currentState = State.Idle;
                     break;
                 }
 
-                MoveTowards(fenceTarget.position);
-                if (Vector2.Distance(transform.position, fenceTarget.position) <= attackRange)
+                Vector2 fencePoint = targetFence.GetClosestPoint(transform.position);
+                MoveTowards(fencePoint);
+
+                if (Vector2.Distance(transform.position, fencePoint) <= attackRange)
                     currentState = State.AttackingFence;
                 break;
 
             case State.AttackingFence:
-                if (fenceTarget == null)
+                if (targetFence == null)
                 {
-                    currentState = State.Idle;
+                    currentState = State.MovingToFence;
                     break;
                 }
-                AttackTarget(fenceTarget);
+
+                Vector2 attackPoint = targetFence.GetClosestPoint(transform.position);
+                if (Vector2.Distance(transform.position, attackPoint) > attackRange * 1.2f)
+                {
+                    currentState = State.MovingToFence;
+                    break;
+                }
+
+                AttackDamageable(targetFence, attackPoint);
                 break;
 
             case State.ChasingPlayer:
@@ -129,7 +194,12 @@ public class EnemyAI : MonoBehaviour, IDamageable
                     currentState = State.MovingToFence;
                     break;
                 }
-                MoveTowards(player.position);
+
+                FenceSection blocker = GetBlockingSection();
+                if (blocker != null)
+                    AttackDamageable(blocker, blocker.GetClosestPoint(transform.position));
+                else
+                    MoveTowards(player.position);
                 break;
 
             case State.AttackingPlayer:
@@ -138,25 +208,74 @@ public class EnemyAI : MonoBehaviour, IDamageable
                     currentState = State.MovingToFence;
                     break;
                 }
-                AttackTarget(player);
+
+                AttackDamageable(playerDamageable, player.position);
                 break;
         }
     }
 
     private void MoveTowards(Vector2 targetPosition)
     {
-        transform.position = Vector2.MoveTowards(transform.position, targetPosition, speed * Time.deltaTime);
+        if (Vector2.Distance(transform.position, targetPosition) > 0.01f)
+        {
+            isMoving = true;
+            FaceTarget(targetPosition);
+        }
+
+        if (rb != null)
+        {
+            pendingMoveTarget = targetPosition;
+            hasPendingMove = true;
+        }
+        else
+        {
+            transform.position = Vector2.MoveTowards(transform.position, targetPosition, speed * Time.deltaTime);
+        }
     }
 
-    private void AttackTarget(Transform target)
+    private FenceSection GetBlockingSection()
     {
+        Vector2 from = transform.position;
+        Vector2 toPlayer = (Vector2)player.position - from;
+        float distance = Mathf.Min(toPlayer.magnitude, attackRange);
+        if (distance <= 0.001f) return null;
+
+        ContactFilter2D filter = new ContactFilter2D().NoFilter();
+        int count = Physics2D.Raycast(from, toPlayer.normalized, filter, rayBuffer, distance);
+
+        for (int i = 0; i < count; i++)
+        {
+            FenceSection section = rayBuffer[i].collider.GetComponentInParent<FenceSection>();
+            if (section != null && !section.IsDestroyed)
+                return section;
+        }
+
+        return null;
+    }
+
+    private void AttackDamageable(IDamageable target, Vector2 targetPosition)
+    {
+        if (target == null) return;
         if (Time.time < lastAttackTime + attackCooldown) return;
+
         lastAttackTime = Time.time;
 
-        // GetComponentInParent - на випадок, якщо колайдер на дочірньому об'єкті
-        IDamageable damageable = target.GetComponentInParent<IDamageable>();
-        if (damageable != null)
-            damageable.TakeDamage(attackDamage);
+        FaceTarget(targetPosition);
+        if (animator != null)
+            animator.SetTrigger(AttackHash);
+
+        target.TakeDamage(attackDamage);
+    }
+
+    private void FaceTarget(Vector2 targetPosition)
+    {
+        if (spriteRenderer == null) return;
+
+        float dx = targetPosition.x - transform.position.x;
+        if (Mathf.Abs(dx) < 0.01f) return;
+
+        bool targetIsRight = dx > 0f;
+        spriteRenderer.flipX = spriteFacesRight ? !targetIsRight : targetIsRight;
     }
 
     public void TakeDamage(int damage)
@@ -171,7 +290,6 @@ public class EnemyAI : MonoBehaviour, IDamageable
             return;
         }
 
-        // Якщо вовка вдарили - він переключається на гравця (але не збиваємо поточну атаку)
         if (player != null && currentState != State.AttackingPlayer)
             currentState = State.ChasingPlayer;
     }
