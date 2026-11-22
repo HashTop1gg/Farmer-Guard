@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class EnemyAI : MonoBehaviour, IDamageable
 {
     public enum State
@@ -118,34 +119,23 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
         float distanceToPlayer = Vector2.Distance(transform.position, player.position);
 
-        // Якщо огорож більше немає — женемося за гравцем
-        if (targetFence == null)
+        // Гравець має вищий пріоритет, поки вовк знаходиться в радіусі агро.
+        if (distanceToPlayer <= aggroRadius)
         {
-            currentState = distanceToPlayer <= attackRange ? State.AttackingPlayer : State.ChasingPlayer;
+            currentState = distanceToPlayer <= attackRange
+                ? State.AttackingPlayer
+                : State.ChasingPlayer;
             return;
         }
 
-        switch (currentState)
-        {
-            case State.AttackingPlayer:
-                if (distanceToPlayer > losePlayerRange)
-                    currentState = State.MovingToFence;
-                else if (distanceToPlayer > attackRange)
-                    currentState = State.ChasingPlayer;
-                break;
-
-            case State.ChasingPlayer:
-                if (distanceToPlayer > losePlayerRange)
-                    currentState = State.MovingToFence;
-                else if (distanceToPlayer <= attackRange)
-                    currentState = State.AttackingPlayer;
-                break;
-
-            default:
-                if (distanceToPlayer <= aggroRadius)
-                    currentState = distanceToPlayer <= attackRange ? State.AttackingPlayer : State.ChasingPlayer;
-                break;
-        }
+        if (distanceToPlayer > losePlayerRange)
+            currentState = targetFence != null
+                ? State.MovingToFence
+                : State.Idle;
+        else if (currentState == State.AttackingPlayer || currentState == State.ChasingPlayer)
+            currentState = targetFence != null
+                ? State.MovingToFence
+                : State.Idle;
     }
 
     private void ExecuteState()
@@ -240,8 +230,7 @@ public class EnemyAI : MonoBehaviour, IDamageable
         float distance = Mathf.Min(toPlayer.magnitude, attackRange);
         if (distance <= 0.001f) return null;
 
-        ContactFilter2D filter = new ContactFilter2D().NoFilter();
-        int count = Physics2D.Raycast(from, toPlayer.normalized, filter, rayBuffer, distance);
+        int count = Physics2D.Raycast(from, toPlayer.normalized, ContactFilter2D.noFilter, rayBuffer, distance);
 
         for (int i = 0; i < count; i++)
         {
