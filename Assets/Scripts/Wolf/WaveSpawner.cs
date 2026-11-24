@@ -129,6 +129,9 @@ public class WaveSpawner : MonoBehaviour
                 rb.simulated = true;
                 rb.bodyType = RigidbodyType2D.Dynamic;
             }
+
+            foreach (Collider2D collider in wolf.GetComponentsInChildren<Collider2D>(true))
+                collider.enabled = true;
         }
 
         wolf.Initialize(fence, player, difficulty);
@@ -151,8 +154,7 @@ public class WaveSpawner : MonoBehaviour
         if (animator != null)
             animator.enabled = false;
 
-        Collider2D collider = enemy.GetComponent<Collider2D>();
-        if (collider != null)
+        foreach (Collider2D collider in enemy.GetComponentsInChildren<Collider2D>(true))
             collider.enabled = false;
 
         Rigidbody2D rb = enemy.GetComponent<Rigidbody2D>();
@@ -162,24 +164,14 @@ public class WaveSpawner : MonoBehaviour
 
     private void CreateAutomaticSpawnPoints()
     {
-        Vector2 center = transform.position;
-        float radius = 6f;
-        Transform parent = transform;
-        spawnPoints = new Transform[4];
+        Vector2[] positions = FarmMapBuilder.ForestWolfSpawnPositions;
+        spawnPoints = new Transform[positions.Length];
 
-        Vector2[] offsets =
+        for (int i = 0; i < positions.Length; i++)
         {
-            new Vector2(-radius, 0f),
-            new Vector2(radius, 0f),
-            new Vector2(0f, radius),
-            new Vector2(0f, -radius)
-        };
-
-        for (int i = 0; i < offsets.Length; i++)
-        {
-            GameObject point = new GameObject($"WolfSpawnPoint_{i + 1}");
-            point.transform.SetParent(parent);
-            point.transform.position = center + offsets[i];
+            GameObject point = new GameObject($"ForestWolfSpawnPoint_{i + 1}");
+            point.transform.SetParent(transform);
+            point.transform.position = positions[i];
             spawnPoints[i] = point.transform;
         }
     }

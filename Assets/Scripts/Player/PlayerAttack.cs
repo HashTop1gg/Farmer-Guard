@@ -1,30 +1,40 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(Player_Script))]
 public class PlayerAttack : MonoBehaviour
 {
     [SerializeField] private int damage = 25;
     [SerializeField] private float attackCooldown = 0.5f;
-    [SerializeField] private float attackRadius = 0.8f;
-    [Tooltip("Наскільки далеко перед гравцем центр удару")]
-    [SerializeField] private float attackOffset = 0.8f;
+    [SerializeField] private float attackRadius = 1.25f;
     [SerializeField] private LayerMask enemyLayers = ~0;
 
     private Player_Script player;
+    private Animator animator;
     private float lastAttackTime = float.NegativeInfinity;
     private readonly HashSet<EnemyAI> hitThisSwing = new HashSet<EnemyAI>();
+
+    private static readonly int AttackTriggerHash = Animator.StringToHash("Attack");
+    private static readonly int AttackDirectionHash = Animator.StringToHash("AttackDirection");
 
     private void Awake()
     {
         player = GetComponent<Player_Script>();
+        animator = GetComponentInChildren<Animator>();
     }
 
     private void Update()
     {
-        if (player.IsDead || Game_Input.Instance == null) return;
+        if (player.IsDead) return;
 
-        if (Game_Input.Instance.WasAttackPressedThisFrame() &&
+        bool attackPressed = Game_Input.Instance != null &&
+            Game_Input.Instance.WasAttackPressedThisFrame();
+        attackPressed |= Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        attackPressed |= Touchscreen.current != null &&
+            Touchscreen.current.primaryTouch.press.wasPressedThisFrame;
+
+        if (attackPressed &&
             Time.time >= lastAttackTime + attackCooldown)
         {
             lastAttackTime = Time.time;
@@ -34,28 +44,50 @@ public class PlayerAttack : MonoBehaviour
 
     private void Attack()
     {
-        Vector2 center = GetAttackCenter();
-        Collider2D[] hits = Physics2D.OverlapCircleAll(center, attackRadius, enemyLayers);
+        PlayAttackAnimation();
 
         hitThisSwing.Clear();
 
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, attackRadius, enemyLayers);
         foreach (Collider2D hit in hits)
         {
             EnemyAI enemy = hit.GetComponentInParent<EnemyAI>();
-            if (enemy == null || !hitThisSwing.Add(enemy)) continue;
+            DamageEnemy(enemy);
+        }
 
-            enemy.TakeDamage(damage);
+        foreach (EnemyAI enemy in FindObjectsByType<EnemyAI>())
+        {
+            if (enemy == null || !enemy.isActiveAndEnabled || hitThisSwing.Contains(enemy))
+                continue;
+
+            if (Vector2.Distance(transform.position, enemy.transform.position) <= attackRadius)
+                DamageEnemy(enemy);
         }
     }
-    private Vector2 GetAttackCenter()
+
+    private void DamageEnemy(EnemyAI enemy)
     {
-        return (Vector2)transform.position + player.FacingDirection * attackOffset;
+        if (enemy == null || !hitThisSwing.Add(enemy)) return;
+        enemy.TakeDamage(damage);
+    }
+
+    private void PlayAttackAnimation()
+    {
+        if (animator == null) return;
+
+        Vector2 direction = player.FacingDirection;
+        int attackDirection = Mathf.Abs(direction.x) > Mathf.Abs(direction.y)
+            ? 0
+            : direction.y < 0f ? 1 : 2;
+
+        animator.SetInteger(AttackDirectionHash, attackDirection);
+        animator.ResetTrigger(AttackTriggerHash);
+        animator.SetTrigger(AttackTriggerHash);
     }
 
     private void OnDrawGizmosSelected()
     {
-        Vector2 dir = Application.isPlaying && player != null ? player.FacingDirection : Vector2.right;
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere((Vector2)transform.position + dir * attackOffset, attackRadius);
+        Gizmos.DrawWireSphere(transform.position, attackRadius);
     }
 }
