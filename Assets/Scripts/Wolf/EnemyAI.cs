@@ -119,7 +119,6 @@ public class EnemyAI : MonoBehaviour, IDamageable
 
         float distanceToPlayer = Vector2.Distance(transform.position, player.position);
 
-        // Гравець має вищий пріоритет, поки вовк знаходиться в радіусі агро.
         if (distanceToPlayer <= aggroRadius)
         {
             currentState = distanceToPlayer <= attackRange
