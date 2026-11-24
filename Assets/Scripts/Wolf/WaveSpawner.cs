@@ -11,26 +11,34 @@ public class WaveSpawner : MonoBehaviour
     [SerializeField] private Transform player;
 
     [Header("Waves")]
+    [SerializeField] private int maxWaves = 10;
     [SerializeField] private int baseWolvesPerWave = 3;
-    [SerializeField] private int extraWolvesPerWave = 1;   // +N вовків з кожною хвилею
-    [SerializeField] private float spawnInterval = 1f;     // пауза між вовками в хвилі
-    [SerializeField] private float timeBetweenWaves = 5f;  // коротка пауза між хвилями
+    [SerializeField] private int extraWolvesPerWave = 1;
+    [SerializeField] private float spawnInterval = 1f;
+    [SerializeField] private float timeBetweenWaves = 5f;
+
+    [Header("Rewards")]
+    [SerializeField] private int baseWaveReward = 25;
+    [SerializeField] private int extraRewardPerWave = 5;
 
     [Header("Shop break")]
-    [SerializeField] private int wavesBeforeShopBreak = 3; // велика перерва кожні N хвиль
+    [SerializeField] private int wavesBeforeShopBreak = 3;
     [SerializeField] private float shopBreakDuration = 30f;
-    [SerializeField] private float difficultyStep = 0.25f; // +25% до сили вовків після перерви
+    [SerializeField] private float difficultyStep = 0.25f;
 
-    // Події для UI / магазину
-    public static event Action<int> OnWaveStarted;
+    public static event Action<int, int> OnWaveStarted;
     public static event Action<float> OnShopBreakStarted;
     public static event Action OnShopBreakEnded;
+    public static event Action OnVictory;
 
     private int aliveEnemies;
     private int waveNumber;
     private float difficulty = 1f;
     private bool stopped;
     private EnemyAI templateEnemy;
+
+    public int CurrentWave => waveNumber;
+    public int MaxWaves => maxWaves;
 
     private void Awake()
     {
@@ -68,10 +76,10 @@ public class WaveSpawner : MonoBehaviour
 
     private IEnumerator RunWaves()
     {
-        while (!stopped)
+        while (!stopped && waveNumber < maxWaves)
         {
             waveNumber++;
-            OnWaveStarted?.Invoke(waveNumber);
+            OnWaveStarted?.Invoke(waveNumber, maxWaves);
 
             int count = baseWolvesPerWave + extraWolvesPerWave * (waveNumber - 1);
             for (int i = 0; i < count; i++)
@@ -81,6 +89,18 @@ public class WaveSpawner : MonoBehaviour
             }
 
             yield return new WaitUntil(() => aliveEnemies <= 0);
+
+            if (stopped) yield break;
+
+            int reward = baseWaveReward + extraRewardPerWave * (waveNumber - 1);
+            CurrencyManager.Instance?.AddCoins(reward);
+
+            if (waveNumber >= maxWaves)
+            {
+                stopped = true;
+                OnVictory?.Invoke();
+                yield break;
+            }
 
             bool isShopBreak = waveNumber % wavesBeforeShopBreak == 0;
 
@@ -123,11 +143,15 @@ public class WaveSpawner : MonoBehaviour
             if (animator != null)
                 animator.enabled = true;
 
+            foreach (Collider2D col in wolf.GetComponentsInChildren<Collider2D>(true))
+                col.enabled = true;
+
             Rigidbody2D rb = wolf.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
                 rb.simulated = true;
                 rb.bodyType = RigidbodyType2D.Dynamic;
+                rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             }
 
             foreach (Collider2D collider in wolf.GetComponentsInChildren<Collider2D>(true))

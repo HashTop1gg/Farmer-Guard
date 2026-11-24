@@ -2509,6 +2509,7 @@ GameObject:
   - component: {fileID: 290867094}
   - component: {fileID: 290867095}
   - component: {fileID: 290867096}
+  - component: {fileID: 290867096}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Untagged
@@ -2681,10 +2682,13 @@ MonoBehaviour:
   spawnPoints: []
   fence: {fileID: 1863514499}
   player: {fileID: 900663676}
+  maxWaves: 10
   baseWolvesPerWave: 3
   extraWolvesPerWave: 1
   spawnInterval: 1
   timeBetweenWaves: 5
+  baseWaveReward: 25
+  extraRewardPerWave: 5
   wavesBeforeShopBreak: 3
   shopBreakDuration: 30
   difficultyStep: 0.25
@@ -14745,6 +14749,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1863514499}
   - component: {fileID: 1863514500}
+  - component: {fileID: 1863514502}
+  - component: {fileID: 1863514501}
   m_Layer: 0
   m_Name: Fence
   m_TagString: Untagged
@@ -18181,3 +18187,9 @@ SceneRoots:
   - {fileID: 290867092}
   - {fileID: 1863514499}
   - {fileID: 723857664}
+  - {fileID: 2145125489}
+  - {fileID: 1986710898}
+  - {fileID: 51230249}
+  - {fileID: 2022720274}
+  - {fileID: 29718671}
+  - {fileID: 1226703446}

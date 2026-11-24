@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 9e520cbf98b603c49aef02297ac6b31b
+guid: db954e47fc28e224c97453eca03793b5
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -4702852496155952385
-    second: "\u0412\u0456\u0432\u0446\u044F_0001_0"
+      213: -5728745365381332953
+    second: Sheep_0002_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -128,13 +128,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "\u0412\u0456\u0432\u0446\u044F_0001_0"
+      name: Sheep_0002_0
       rect:
         serializedVersion: 2
         x: 6
         y: 8
         width: 49
-        height: 37
+        height: 36
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -143,8 +143,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: ffab09f429c1cbeb0800000000000000
-      internalID: -4702852496155952385
+      spriteID: 720c7cf31786f70b0800000000000000
+      internalID: -5728745365381332953
       vertices: []
       indices: 
       edges: []
@@ -163,7 +163,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      "\u0412\u0456\u0432\u0446\u044F_0001_0": -4702852496155952385
+      Sheep_0002_0: -5728745365381332953
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
