@@ -15,10 +15,11 @@ public class WaveSpawner : MonoBehaviour
     [SerializeField] private Transform[] spawnPoints;
     [SerializeField] private Transform fence;
     [SerializeField] private Transform player;
+    [SerializeField] private SheepPen sheepPen;
 
     [Header("Spawn Settings")]
     [SerializeField] private SpawnOrder spawnOrder = SpawnOrder.Random;
-    [Tooltip("Невеликий випадковий розкид навколо точки (0 = спавн строго в центрі точки)")]
+    [Tooltip("")]
     [SerializeField] private float spawnJitter = 0.25f;
 
     [Header("Waves")]
@@ -29,8 +30,10 @@ public class WaveSpawner : MonoBehaviour
     [SerializeField] private float timeBetweenWaves = 5f;
 
     [Header("Rewards")]
-    [SerializeField] private int baseWaveReward = 25;
-    [SerializeField] private int extraRewardPerWave = 5;
+    [SerializeField] private int baseWaveReward = 10;
+    [SerializeField] private int extraRewardPerWave = 0;
+    [Tooltip("РњРѕРЅРµС‚ Р·Р° РєРѕР¶РЅСѓ РІС–РІС†СЋ РїС–СЃР»СЏ Р·Р°РІРµСЂС€РµРЅРЅСЏ С…РІРёР»С–")]
+    [SerializeField, Min(0)] private int sheepRewardPerWave = 20;
 
     [Header("Shop break")]
     [SerializeField] private int wavesBeforeShopBreak = 3;
@@ -60,6 +63,9 @@ public class WaveSpawner : MonoBehaviour
         if (fence == null)
             fence = FindAnyObjectByType<Fence>()?.transform;
 
+        if (sheepPen == null)
+            sheepPen = FindAnyObjectByType<SheepPen>();
+
         templateEnemy = GetComponent<EnemyAI>();
         if (templateEnemy != null)
             wolfPrefab = templateEnemy;
@@ -70,7 +76,10 @@ public class WaveSpawner : MonoBehaviour
             PrepareTemplate(wolfPrefab);
 
         if (spawnPoints == null || spawnPoints.Length == 0)
-            Debug.LogWarning("WaveSpawner: не призначено жодної точки спавну в масиві Spawn Points!", this);
+            Debug.LogWarning("WaveSpawner: Spawn Points!", this);
+
+        if (sheepPen == null && sheepRewardPerWave > 0)
+            Debug.LogWarning("WaveSpawner: SheepPen is missing; sheep bonus will not be awarded.", this);
     }
 
     private void OnEnable() { EnemyAI.OnEnemyDied += HandleEnemyDied; }
@@ -104,7 +113,10 @@ public class WaveSpawner : MonoBehaviour
 
             if (stopped) yield break;
 
-            int reward = baseWaveReward + extraRewardPerWave * (waveNumber - 1);
+            int sheepBonus = sheepPen != null
+                ? sheepPen.SheepCount * Mathf.Max(0, sheepRewardPerWave)
+                : 0;
+            int reward = baseWaveReward + extraRewardPerWave * (waveNumber - 1) + sheepBonus;
             CurrencyManager.Instance?.AddCoins(reward);
 
             if (waveNumber >= maxWaves)
@@ -145,7 +157,7 @@ public class WaveSpawner : MonoBehaviour
             return null;
         }
 
-        // Випадковий вибір серед заповнених точок
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         for (int attempt = 0; attempt < 10; attempt++)
         {
             Transform candidate = spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
@@ -185,14 +197,19 @@ public class WaveSpawner : MonoBehaviour
             if (animator != null)
                 animator.enabled = true;
 
+            CircleCollider2D movementCollider = wolf.GetComponent<CircleCollider2D>();
             foreach (Collider2D col in wolf.GetComponentsInChildren<Collider2D>(true))
-                col.enabled = true;
+                col.enabled = col == movementCollider;
+
+            if (movementCollider != null)
+                movementCollider.isTrigger = false;
 
             Rigidbody2D rb = wolf.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
                 rb.simulated = true;
-                rb.bodyType = RigidbodyType2D.Dynamic;
+                rb.bodyType = RigidbodyType2D.Kinematic;
+                rb.useFullKinematicContacts = true;
                 rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             }
         }
@@ -217,8 +234,7 @@ public class WaveSpawner : MonoBehaviour
         if (animator != null)
             animator.enabled = false;
 
-        Collider2D collider = enemy.GetComponent<Collider2D>();
-        if (collider != null)
+        foreach (Collider2D collider in enemy.GetComponentsInChildren<Collider2D>(true))
             collider.enabled = false;
 
         Rigidbody2D rb = enemy.GetComponent<Rigidbody2D>();

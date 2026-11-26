@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 #if UNITY_EDITOR
@@ -26,6 +27,47 @@ public class FarmMapBuilder : MonoBehaviour
     private const float HalfWidth = 8.25f;
     private const float HalfHeight = 4.5f;
     private const float WallThickness = 0.5f;
+
+    public static bool IsGeneratedMapObstacle(GameObject target)
+    {
+        if (target == null)
+            return false;
+
+        string objectName = target.name;
+        return objectName.StartsWith("Wildflower_", StringComparison.Ordinal)
+            || objectName.StartsWith("ForestBush_", StringComparison.Ordinal)
+            || objectName.StartsWith("NorthTree_", StringComparison.Ordinal)
+            || objectName.StartsWith("SouthTree_", StringComparison.Ordinal)
+            || objectName.StartsWith("WestTree_", StringComparison.Ordinal)
+            || objectName.StartsWith("EastTree_", StringComparison.Ordinal);
+    }
+
+    public static void EnsureGeneratedMapObstacleCollider(SpriteRenderer renderer)
+    {
+        if (renderer == null || renderer.sprite == null || !IsGeneratedMapObstacle(renderer.gameObject))
+            return;
+
+        BoxCollider2D collider = renderer.GetComponent<BoxCollider2D>();
+        if (collider == null)
+            collider = renderer.gameObject.AddComponent<BoxCollider2D>();
+
+        Bounds bounds = renderer.sprite.bounds;
+        if (renderer.gameObject.name.IndexOf("Tree_", StringComparison.Ordinal) >= 0)
+        {
+            float width = Mathf.Min(0.5f, bounds.size.x * 0.45f);
+            float height = Mathf.Min(0.34f, bounds.size.y * 0.25f);
+            collider.offset = new Vector2(bounds.center.x, bounds.min.y + height * 0.5f);
+            collider.size = new Vector2(width, height);
+        }
+        else
+        {
+            collider.offset = bounds.center;
+            collider.size = bounds.size;
+        }
+
+        collider.enabled = true;
+        collider.isTrigger = false;
+    }
 
     private void OnEnable()
     {
@@ -177,10 +219,6 @@ public class FarmMapBuilder : MonoBehaviour
         SpriteRenderer renderer = tree.AddComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = Mathf.RoundToInt(-position.y * 10f);
-
-        BoxCollider2D trunk = tree.AddComponent<BoxCollider2D>();
-        trunk.offset = new Vector2(tileSize * 0.5f, 0.17f);
-        trunk.size = new Vector2(0.5f, 0.34f);
     }
 
     private void PlaceBush(Transform parent, Vector2 position, int spriteIndex)

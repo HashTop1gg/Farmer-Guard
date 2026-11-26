@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -17,8 +18,21 @@ public class ShopController : MonoBehaviour
     [SerializeField] private SheepPen sheepPen;
     [SerializeField] private int sheepCost = 50;
 
+    [Header("Shop Items")]
+    [SerializeField] private Sprite healthIcon;
+    [SerializeField] private Sprite soupIcon;
+    [SerializeField] private Sprite knifeIcon;
+    [SerializeField] private Sprite coinIcon;
+    [SerializeField] private int healthBoostCost = 25;
+    [SerializeField] private float healthBoostDuration = 30f;
+    [SerializeField] private int healthPerSecond = 2;
+    [SerializeField] private int knifeBoostCost = 40;
+    [SerializeField] private float knifeBoostDuration = 30f;
+    [SerializeField] private float knifeDamageMultiplier = 1.5f;
+
     private Transform shopTransform;
     private Player_Script player;
+    private PlayerAttack playerAttack;
     private Fence fence;
     private CurrencyManager currencyManager;
     private bool isOpen;
@@ -28,6 +42,9 @@ public class ShopController : MonoBehaviour
     private void Awake()
     {
         player = FindAnyObjectByType<Player_Script>();
+        if (player != null)
+            playerAttack = player.GetComponent<PlayerAttack>();
+
         fence = FindAnyObjectByType<Fence>();
         currencyManager = FindAnyObjectByType<CurrencyManager>();
 
@@ -111,6 +128,22 @@ public class ShopController : MonoBehaviour
         }
     }
 
+    private void BuyHealthBoost()
+    {
+        if (player == null || player.IsDead || currencyManager == null) return;
+
+        if (currencyManager.TrySpendCoins(healthBoostCost))
+            player.ApplyHealthBoost(healthBoostDuration, healthPerSecond);
+    }
+
+    private void BuyKnifeBoost()
+    {
+        if (playerAttack == null || currencyManager == null) return;
+
+        if (currencyManager.TrySpendCoins(knifeBoostCost))
+            playerAttack.ApplyDamageBoost(knifeBoostDuration, knifeDamageMultiplier);
+    }
+
     private void OnDisable()
     {
         if (isOpen)
@@ -131,38 +164,62 @@ public class ShopController : MonoBehaviour
 
         Color previousBackground = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0.12f, 0.12f, 0.12f, 0.98f);
-        Rect modal = new Rect(Screen.width / 2f - 230f, Screen.height / 2f - 150f, 460f, 300f);
+        Rect modal = new Rect(Screen.width / 2f - 320f, Screen.height / 2f - 225f, 640f, 450f);
         GUI.Box(modal, "SHOP");
-
-        GUI.Label(new Rect(modal.x + 20f, modal.y + 50f, modal.width - 40f, 30f),
-            $"Repair fence: +{fenceRepairAmount} health ({fenceRepairCost} coins)");
-        GUI.enabled = fence != null && currentCoins >= fenceRepairCost;
-        if (GUI.Button(new Rect(modal.x + 300f, modal.y + 48f, 140f, 34f), $"Repair ({fenceRepairCost})"))
-            TryRepairFence();
-
-        GUI.Label(new Rect(modal.x + 20f, modal.y + 105f, modal.width - 40f, 30f),
-            $"Heal player: +{playerHealAmount} health ({playerHealCost} coins)");
-        GUI.enabled = player != null && currentCoins >= playerHealCost;
-        if (GUI.Button(new Rect(modal.x + 300f, modal.y + 103f, 140f, 34f), $"Heal ({playerHealCost})"))
-            TryHealPlayer();
+        if (coinIcon != null)
+            GUI.DrawTexture(new Rect(modal.x + 520f, modal.y + 14f, 20f, 20f), coinIcon.texture, ScaleMode.ScaleToFit, true);
+        GUI.Label(new Rect(modal.x + 544f, modal.y + 12f, 70f, 24f), currentCoins.ToString());
 
         bool hasPen = sheepPen != null;
         bool penFull = hasPen && sheepPen.IsFull;
         string counter = hasPen ? $"{sheepPen.SheepCount}/{sheepPen.MaxSheep}" : "-";
 
-        GUI.Label(new Rect(modal.x + 20f, modal.y + 160f, modal.width - 40f, 30f),
-            $"Buy sheep: {counter} ({sheepCost} coins)");
-
-        GUI.enabled = hasPen && !penFull && currentCoins >= sheepCost;
-        string sheepBtnText = penFull ? "Pen full" : $"Buy ({sheepCost})";
-        if (GUI.Button(new Rect(modal.x + 300f, modal.y + 158f, 140f, 34f), sheepBtnText))
-            BuySheep();
+        DrawPurchaseRow(modal, 54f, healthIcon, "Repair fence", $"+{fenceRepairAmount} fence HP",
+            fenceRepairCost, fence != null && currentCoins >= fenceRepairCost, "Buy", TryRepairFence);
+        DrawPurchaseRow(modal, 111f, healthIcon, "Heal player", $"+{playerHealAmount} HP immediately",
+            playerHealCost, player != null && !player.IsDead && player.CurrentHealth < player.MaxHealth &&
+            currentCoins >= playerHealCost, "Buy", TryHealPlayer);
+        DrawPurchaseRow(modal, 168f, null, "Buy sheep", $"In pen: {counter}", sheepCost,
+            hasPen && !penFull && currentCoins >= sheepCost, penFull ? "Full" : "Buy", BuySheep);
+        DrawPurchaseRow(modal, 225f, soupIcon, "Soup", $"+{healthPerSecond} HP/sec for {healthBoostDuration:0} sec",
+            healthBoostCost, player != null && !player.IsDead && currentCoins >= healthBoostCost, "Buy", BuyHealthBoost);
+        DrawPurchaseRow(modal, 282f, knifeIcon, "Knife", $"+{(knifeDamageMultiplier - 1f) * 100f:0}% attack damage for {knifeBoostDuration:0} sec",
+            knifeBoostCost, playerAttack != null && currentCoins >= knifeBoostCost, "Buy", BuyKnifeBoost);
 
         GUI.enabled = true;
 
-        if (GUI.Button(new Rect(modal.x + 300f, modal.y + 240f, 140f, 34f), "Close"))
+        if (GUI.Button(new Rect(modal.x + modal.width - 140f, modal.y + 396f, 120f, 34f), "Close"))
             Close();
 
         GUI.backgroundColor = previousBackground;
+    }
+
+    private void DrawPurchaseRow(
+        Rect modal,
+        float yOffset,
+        Sprite icon,
+        string title,
+        string description,
+        int cost,
+        bool canBuy,
+        string buttonLabel,
+        Action purchase)
+    {
+        float rowY = modal.y + yOffset;
+        if (icon != null)
+            GUI.DrawTexture(new Rect(modal.x + 18f, rowY + 2f, 42f, 42f), icon.texture, ScaleMode.ScaleToFit, true);
+
+        GUI.Label(new Rect(modal.x + 72f, rowY, 315f, 22f), title);
+        GUI.Label(new Rect(modal.x + 72f, rowY + 22f, 315f, 22f), description);
+
+        if (coinIcon != null)
+            GUI.DrawTexture(new Rect(modal.x + 408f, rowY + 12f, 20f, 20f), coinIcon.texture, ScaleMode.ScaleToFit, true);
+
+        GUI.Label(new Rect(modal.x + 432f, rowY + 10f, 52f, 24f), cost.ToString());
+        GUI.enabled = canBuy;
+        if (GUI.Button(new Rect(modal.x + 495f, rowY + 5f, 125f, 34f), buttonLabel))
+            purchase();
+
+        GUI.enabled = true;
     }
 }

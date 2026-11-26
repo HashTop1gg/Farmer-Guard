@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
@@ -20,6 +21,8 @@ public class Player_Script : MonoBehaviour, IDamageable
     private Rigidbody2D rb;
     private int currentHealth;
     private bool isDead;
+    private Coroutine healthBoostCoroutine;
+    private static float nextMapObstacleRefreshTime;
 
     private static readonly int MoveXHash = Animator.StringToHash("MoveX");
     private static readonly int MoveYHash = Animator.StringToHash("MoveY");
@@ -32,6 +35,26 @@ public class Player_Script : MonoBehaviour, IDamageable
     public int CurrentHealth => currentHealth;
     public int MaxHealth => maxHealth;
 
+    public static void RefreshGeneratedMapObstacleColliders()
+    {
+        if (Time.time < nextMapObstacleRefreshTime)
+            return;
+
+        nextMapObstacleRefreshTime = Time.time + 0.25f;
+        SpriteRenderer[] renderers = UnityEngine.Object.FindObjectsByType<SpriteRenderer>();
+
+        foreach (SpriteRenderer renderer in renderers)
+        {
+            if (renderer != null && FarmMapBuilder.IsGeneratedMapObstacle(renderer.gameObject))
+                FarmMapBuilder.EnsureGeneratedMapObstacleCollider(renderer);
+        }
+    }
+
+    public static bool IsGeneratedMapObstacleCollider(Collider2D collider)
+    {
+        return collider != null && FarmMapBuilder.IsGeneratedMapObstacle(collider.gameObject);
+    }
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -42,7 +65,7 @@ public class Player_Script : MonoBehaviour, IDamageable
             Debug.LogWarning("Player_Script: Rigidbody2D переведено в Dynamic, щоб працювали колізії.", this);
             rb.bodyType = RigidbodyType2D.Dynamic;
         }
-
+        
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
@@ -57,6 +80,7 @@ public class Player_Script : MonoBehaviour, IDamageable
 
     private void FixedUpdate()
     {
+        RefreshGeneratedMapObstacleColliders();
         if (isDead || Game_Input.Instance == null || rb == null) return;
 
         Vector2 moveVector = Game_Input.Instance.GetMovementVector().normalized;
@@ -118,5 +142,28 @@ public class Player_Script : MonoBehaviour, IDamageable
         if (isDead || amount <= 0) return;
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
+    public void ApplyHealthBoost(float durationSeconds, int healingPerSecond)
+    {
+        if (isDead || durationSeconds <= 0f || healingPerSecond <= 0) return;
+
+        if (healthBoostCoroutine != null)
+            StopCoroutine(healthBoostCoroutine);
+
+        healthBoostCoroutine = StartCoroutine(HealthBoostRoutine(durationSeconds, healingPerSecond));
+    }
+
+    private IEnumerator HealthBoostRoutine(float durationSeconds, int healingPerSecond)
+    {
+        float elapsed = 0f;
+        while (elapsed < durationSeconds && !isDead)
+        {
+            Heal(healingPerSecond);
+            yield return new WaitForSeconds(1f);
+            elapsed += 1f;
+        }
+
+        healthBoostCoroutine = null;
     }
 }

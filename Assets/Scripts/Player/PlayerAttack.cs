@@ -13,6 +13,8 @@ public class PlayerAttack : MonoBehaviour
     private Player_Script player;
     private Animator animator;
     private float lastAttackTime = float.NegativeInfinity;
+    private float damageBoostExpiresAt;
+    private float damageBoostMultiplier = 1f;
     private readonly HashSet<EnemyAI> hitThisSwing = new HashSet<EnemyAI>();
 
     private static readonly int AttackTriggerHash = Animator.StringToHash("Attack");
@@ -26,7 +28,7 @@ public class PlayerAttack : MonoBehaviour
 
     private void Update()
     {
-        if (player.IsDead) return;
+        if (player.IsDead || Time.timeScale <= 0f) return;
 
         bool attackPressed = Game_Input.Instance != null &&
             Game_Input.Instance.WasAttackPressedThisFrame();
@@ -47,12 +49,15 @@ public class PlayerAttack : MonoBehaviour
         PlayAttackAnimation();
 
         hitThisSwing.Clear();
+        int currentDamage = Time.time < damageBoostExpiresAt
+            ? Mathf.RoundToInt(damage * damageBoostMultiplier)
+            : damage;
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, attackRadius, enemyLayers);
         foreach (Collider2D hit in hits)
         {
             EnemyAI enemy = hit.GetComponentInParent<EnemyAI>();
-            DamageEnemy(enemy);
+            DamageEnemy(enemy, currentDamage);
         }
 
         foreach (EnemyAI enemy in FindObjectsByType<EnemyAI>())
@@ -61,14 +66,22 @@ public class PlayerAttack : MonoBehaviour
                 continue;
 
             if (Vector2.Distance(transform.position, enemy.transform.position) <= attackRadius)
-                DamageEnemy(enemy);
+                DamageEnemy(enemy, currentDamage);
         }
     }
 
-    private void DamageEnemy(EnemyAI enemy)
+    public void ApplyDamageBoost(float durationSeconds, float multiplier)
+    {
+        if (durationSeconds <= 0f || multiplier <= 1f) return;
+
+        damageBoostMultiplier = multiplier;
+        damageBoostExpiresAt = Time.time + durationSeconds;
+    }
+
+    private void DamageEnemy(EnemyAI enemy, int currentDamage)
     {
         if (enemy == null || !hitThisSwing.Add(enemy)) return;
-        enemy.TakeDamage(damage);
+        enemy.TakeDamage(currentDamage);
     }
 
     private void PlayAttackAnimation()
